@@ -70,12 +70,28 @@ class TelegramMonitor(TelegramMonitorProtocol):
     async def _process_event(self, event, event_type):
         try:
             chat = await event.get_chat()
+            if chat is None:
+                logger.info(
+                    f"Received event({event_type}) from unknown channel({event.chat_id})"
+                )
+                return
             real_id, peer_type = utils.resolve_id(event.chat_id)
             logger.info(
                 f"Received event({event_type}) from channel({chat.title}) => real_id: {real_id}, peer_type: {peer_type}"
             )
+
+            if real_id == [
+                settings.telegram.TARGET_CHANNEL_ID,
+                settings.telegram.TARGET_CHANNEL_ID_UNMONITORED,
+            ]:
+                logger.info(f"Received event({event_type}) from target channel")
+                return
+
             if real_id not in self.monitored_channels:
                 logger.info(f"unmonitored channel({chat.title})")
+                await self.forward_message(
+                    event.message, settings.telegram.TARGET_CHANNEL_ID_UNMONITORED
+                )
                 return
 
             # chat = await event.get_chat()
@@ -100,9 +116,13 @@ class TelegramMonitor(TelegramMonitorProtocol):
             # logger.info(f"{'-' * 200}")
 
             if settings.telegram.FORWARD:
-                await self.forward_message(event.message)
+                await self.forward_message(
+                    event.message, settings.telegram.TARGET_CHANNEL_ID
+                )
             else:
-                await self.send_message(event.message)
+                await self.send_message(
+                    event.message, settings.telegram.TARGET_CHANNEL_ID
+                )
         except Exception as e:
             logger.error(f"Error processing event: {str(e)}")
 
@@ -166,19 +186,15 @@ class TelegramMonitor(TelegramMonitorProtocol):
             if isinstance(channel.entity, Channel)
         ]
 
-    async def send_message(self, message):
+    async def send_message(self, message, target_channel_id):
         try:
-            await self.client.send_message(
-                PeerChannel(settings.telegram.TARGET_CHANNEL_ID), message
-            )
+            await self.client.send_message(PeerChannel(target_channel_id), message)
         except Exception as e:
             logger.error(f"Error sending message: {str(e)}")
 
-    async def forward_message(self, message):
+    async def forward_message(self, message, target_channel_id):
         try:
-            await self.client.forward_messages(
-                PeerChannel(settings.telegram.TARGET_CHANNEL_ID), message
-            )
+            await self.client.forward_messages(PeerChannel(target_channel_id), message)
         except Exception as e:
             logger.error(f"Error forwarding message: {str(e)}")
 

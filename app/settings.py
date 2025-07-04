@@ -11,6 +11,7 @@ class TelegramSettings(BaseModel):
     BOT_TOKEN: Optional[str] = None
     CHANNELS: str
     TARGET_CHANNEL_ID: int
+    TARGET_CHANNEL_ID_UNMONITORED: int
     FORWARD: bool = True
 
 
